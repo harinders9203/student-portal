@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 import { seedDatabase } from './db/seed.js';
+import { securityHeaders, sanitizeInput, createRateLimiter } from './middleware/security.js';
 import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
 import trainerRoutes from './routes/trainers.js';
@@ -26,14 +27,32 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security & Middleware
+// Security Hardening: Disable server fingerprinting
+app.disable('x-powered-by');
+
+// Security Headers (Helmet-like protection)
+app.use(securityHeaders);
+
+// CORS Policy
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Body Parsing with Size Limits (Prevents payload-based DoS)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Input Sanitization (Prevents XSS vectors and prototype pollution)
+app.use(sanitizeInput);
+
+// Global API Rate Limiter (Max 1000 requests per 15 minutes per IP)
+app.use('/api', createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  message: 'API rate limit exceeded. Please try again in 15 minutes.'
+}));
 
 // Static uploads directory
 const uploadDir = path.join(__dirname, '../uploads');

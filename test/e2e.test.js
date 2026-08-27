@@ -1,5 +1,9 @@
-import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const BASE_URL = 'http://localhost:5000/api';
 
 async function req(endpoint, method = 'GET', body = null, token = null) {
@@ -13,12 +17,12 @@ async function req(endpoint, method = 'GET', body = null, token = null) {
   });
 
   const data = await res.json().catch(() => ({}));
-  return { status: res.status, ok: res.ok, data };
+  return { status: res.status, ok: res.ok, headers: res.headers, data };
 }
 
 async function runE2ETests() {
   console.log('\n======================================================');
-  console.log(' STARTING END-TO-END VERIFICATION & AUDIT SUITE');
+  console.log(' STARTING END-TO-END SECURITY & WORKFLOW AUDIT SUITE');
   console.log('======================================================\n');
 
   let passed = 0;
@@ -35,12 +39,16 @@ async function runE2ETests() {
   }
 
   try {
-    // 1. Health Check
+    // 1. Health Check & Security Headers
+    console.log('--- Testing HTTP Security Headers ---');
     const health = await req('/health');
     assert(health.ok && health.data.status === 'ok', 'Server health check returns ok');
+    assert(health.headers.get('x-content-type-options') === 'nosniff', 'Security header X-Content-Type-Options: nosniff present');
+    assert(health.headers.get('x-frame-options') === 'SAMEORIGIN', 'Security header X-Frame-Options: SAMEORIGIN present');
+    assert(health.headers.get('x-xss-protection') === '1; mode=block', 'Security header X-XSS-Protection: 1; mode=block present');
 
     // 2. Role Authentication
-    console.log('\n--- Testing Authentication & JWT Claims ---');
+    console.log('\n--- Testing Authentication & Cryptographic JWT Claims ---');
     const adminLogin = await req('/auth/login', 'POST', { email: 'admin@portal.edu', password: 'admin123' });
     assert(adminLogin.ok && adminLogin.data.user.role === 'admin', 'Admin login successful and role verified');
     const adminToken = adminLogin.data.token;
@@ -53,9 +61,34 @@ async function runE2ETests() {
     assert(studentLogin.ok && studentLogin.data.user.role === 'student', 'Student John login successful and role verified');
     const studentToken = studentLogin.data.token;
 
-    // 3. Student Attendance Marking & Duplicate Prevention
+    // 3. Forged Token Rejection
+    const fakeTokenRes = await req('/auth/me', 'GET', null, 'forged-invalid-jwt-token-12345');
+    assert(fakeTokenRes.status === 401, 'Forged / invalid JWT tokens strictly rejected (401 Unauthorized)');
+
+    // 4. Password Cryptography Verification in Database
+    console.log('\n--- Testing Database Password Storage Cryptography ---');
+    const dbFilePath = path.join(__dirname, '../server/db/data.json');
+    if (fs.existsSync(dbFilePath)) {
+      const dbContent = JSON.parse(fs.readFileSync(dbFilePath, 'utf8'));
+      const allUsers = dbContent.users || [];
+      const hasPlainText = allUsers.some(u => !u.password_hash || !u.password_hash.startsWith('$2b$10$'));
+      assert(!hasPlainText && allUsers.length > 0, 'ALL passwords stored exclusively as salted Bcrypt hashes ($2b$10$...)');
+    }
+
+    // 5. Input Sanitization & XSS Neutralization
+    console.log('\n--- Testing Input Sanitization & XSS Neutralization ---');
+    const xssPayload = '<script>alert("XSS")</script>Grievance with XSS vector';
+    const xssComplaint = await req('/complaints', 'POST', {
+      category: 'Course',
+      subject: xssPayload,
+      description: 'Testing sanitization of <script> tag payload',
+      priority: 'Medium'
+    }, studentToken);
+    assert(xssComplaint.ok && !xssComplaint.data.data.subject.includes('<script>'), 'Dangerous <script> vectors sanitized from user inputs');
+
+    // 6. Student Attendance Marking & Duplicate Prevention
     console.log('\n--- Testing Student Attendance Workflow ---');
-    const testSession = `Special Evening Session ${Date.now()}`;
+    const testSession = `Security Evening Session ${Date.now()}`;
     const markRes = await req('/attendance/mark', 'POST', { session: testSession, notes: 'Automated test attendance' }, studentToken);
     assert(markRes.status === 201 && markRes.data.data.status === 'Pending Verification', 'Student marks attendance -> initial status is Pending Verification');
     const createdAttendanceId = markRes.data.data.id;
@@ -69,11 +102,11 @@ async function runE2ETests() {
     assert(myAtt.ok && Array.isArray(myAtt.data.data), 'Student retrieves own attendance history');
     assert(myAtt.data.stats && myAtt.data.stats.attendancePercentage !== undefined, 'Attendance stats and percentage computed');
 
-    // 4. Student Complaints Submission & Privacy
-    console.log('\n--- Testing Student Complaints Privacy ---');
+    // 7. Student Complaints Privacy & Admin Notes Isolation
+    console.log('\n--- Testing Student Complaints Privacy & Scope Isolation ---');
     const complaintRes = await req('/complaints', 'POST', {
       category: 'Course',
-      subject: `E2E Test Grievance ${Date.now()}`,
+      subject: `E2E Security Grievance ${Date.now()}`,
       description: 'Testing confidential grievance isolation',
       priority: 'High'
     }, studentToken);
@@ -86,7 +119,7 @@ async function runE2ETests() {
     const foundComplaint = myComplaints.data.data.find(c => c.id === createdComplaintId);
     assert(foundComplaint && foundComplaint.admin_notes === undefined, 'Student complaint response strips private internal admin_notes');
 
-    // 5. Trainer RBAC Enforcement & Verification
+    // 8. Trainer RBAC Enforcement & Verification
     console.log('\n--- Testing Trainer Scoping & RBAC ---');
     // Trainer blocked from student complaints
     const trainerComplaintBlock = await req('/complaints/my', 'GET', null, trainerToken);
@@ -106,7 +139,7 @@ async function runE2ETests() {
     const rejectRes = await req(`/attendance/reject/${markRes2.data.data.id}`, 'POST', { reason: 'Left session early without leave permission' }, trainerToken);
     assert(rejectRes.ok && rejectRes.data.data.status === 'Rejected' && rejectRes.data.data.rejection_reason.includes('early'), 'Trainer rejects attendance -> Status: Rejected with mandatory reason recorded');
 
-    // 6. Admin Dashboard, Reports & Complaint Resolution
+    // 9. Admin Dashboard, Reports & Complaint Resolution
     console.log('\n--- Testing Admin Master Controls ---');
     const adminAnalytics = await req('/analytics/admin', 'GET', null, adminToken);
     assert(adminAnalytics.ok && (adminAnalytics.data.data?.cards?.totalStudents > 0 || adminAnalytics.data.cards?.totalStudents > 0), 'Admin retrieves institutional overview KPIs');
@@ -122,12 +155,12 @@ async function runE2ETests() {
     }, adminToken);
     assert(updateComplaintRes.ok && updateComplaintRes.data.data?.status === 'Resolved', 'Admin updates complaint status to Resolved and posts response');
 
-    // 7. Student Notification Check
+    // 10. Real-Time Notifications
     console.log('\n--- Testing Real-Time Notifications ---');
     const studentNotifs = await req('/notifications', 'GET', null, studentToken);
     assert(studentNotifs.ok && (studentNotifs.data.data?.length > 0 || studentNotifs.data.length > 0), 'Student receives real-time notifications for attendance verification and complaint resolution');
 
-    // 8. Audit Logs
+    // 11. Audit Logs
     console.log('\n--- Testing System Audit Trail ---');
     const auditLogs = await req('/audit-logs', 'GET', null, adminToken);
     assert(auditLogs.ok && (auditLogs.data.data?.length > 0 || auditLogs.data.length > 0), 'Audit trail logs recorded for attendance, complaints, and authentication');

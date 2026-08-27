@@ -38,8 +38,10 @@ export function AdminTrainers() {
     specialization: '',
     phone: '',
     bio: '',
+    avatar: '',
     status: 'active'
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // View Details Modal
@@ -80,6 +82,7 @@ export function AdminTrainers() {
       specialization: 'Full-Stack Development',
       phone: '',
       bio: '',
+      avatar: '',
       status: 'active'
     });
     setShowFormModal(true);
@@ -95,6 +98,7 @@ export function AdminTrainers() {
       specialization: trainer.specialization || '',
       phone: trainer.phone || '',
       bio: trainer.bio || '',
+      avatar: trainer.avatar || '',
       status: trainer.status || 'active'
     });
     setShowFormModal(true);
@@ -451,6 +455,51 @@ export function AdminTrainers() {
                 </select>
               </div>
             )}
+          </div>
+
+          {/* Custom Avatar / Profile Picture */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>Profile Photo</span>
+              {uploadingImage && <span className="text-xs text-indigo-600 font-semibold animate-pulse">Uploading photo...</span>}
+            </label>
+            <div className="flex items-center gap-3">
+              <img
+                src={formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || 'Trainer')}`}
+                alt="Preview"
+                className="w-12 h-12 rounded-2xl bg-slate-100 object-cover ring-2 ring-slate-200 shadow-sm"
+              />
+              <div className="flex-1 space-y-1.5">
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploadingImage(true);
+                    try {
+                      const res = await api.uploadFile(file);
+                      if (res.success && res.url) {
+                        setFormData({ ...formData, avatar: res.url });
+                        toast.success('Trainer photo uploaded successfully.');
+                      }
+                    } catch (err) {
+                      toast.error(err.message || 'Failed to upload photo.');
+                    } finally {
+                      setUploadingImage(false);
+                    }
+                  }}
+                  className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={formData.avatar}
+                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                  placeholder="Or enter image URL (https://... or /uploads/...)"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white"
+                />
+              </div>
+            </div>
           </div>
 
           <div>

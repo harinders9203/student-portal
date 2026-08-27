@@ -3,11 +3,18 @@ import bcrypt from 'bcryptjs';
 import { db } from '../db/database.js';
 import { generateToken, requireAuth } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import {
+  authLoginLimiter,
+  checkAccountLockout,
+  recordFailedLogin,
+  resetFailedLogins,
+  validatePasswordPolicy
+} from '../middleware/security.js';
 
 const router = express.Router();
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLoginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -16,9 +23,21 @@ router.post('/login', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // Check brute force account lockout
+    const lockout = checkAccountLockout(cleanEmail);
+    if (lockout.isLocked) {
+      logAudit(req, 'LOGIN_LOCKED', `Locked login attempt on account: ${cleanEmail}`);
+      return res.status(423).json({
+        success: false,
+        message: `Account is temporarily locked due to consecutive failed attempts. Please try again in ${lockout.remainingMinutes} minute(s).`
+      });
+    }
+
     const user = db.findOne('users', u => u.email.toLowerCase() === cleanEmail);
 
     if (!user) {
+      recordFailedLogin(cleanEmail);
       logAudit(req, 'LOGIN_FAILED', `Failed login attempt for non-existent email: ${cleanEmail}`);
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
@@ -30,9 +49,13 @@ router.post('/login', async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      recordFailedLogin(cleanEmail);
       logAudit(req, 'LOGIN_FAILED', `Failed login attempt (wrong password) for: ${user.email}`, user);
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
+
+    // Reset failed login counter on successful authentication
+    resetFailedLogins(cleanEmail);
 
     // Generate JWT
     const token = generateToken(user);
@@ -166,8 +189,9 @@ router.put('/password', requireAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
+    const pwdValidation = validatePasswordPolicy(newPassword);
+    if (!pwdValidation.isValid) {
+      return res.status(400).json({ success: false, message: pwdValidation.message });
     }
 
     const user = db.findById('users', req.user.id);

@@ -92,7 +92,7 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /api/trainers - Admin create trainer
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, email, password, trainer_id, specialization, phone, bio } = req.body;
+    const { name, email, password, trainer_id, specialization, phone, bio, avatar } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Name, email, and password are required.' });
@@ -114,7 +114,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       role: 'trainer',
       status: 'active',
       phone: phone ? phone.trim() : '',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`
+      avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`
     });
 
     const trainer = db.insert('trainers', {
@@ -143,7 +143,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trainer not found.' });
     }
 
-    const { name, email, password, specialization, phone, bio, status, trainer_id } = req.body;
+    const { name, email, password, specialization, phone, bio, status, trainer_id, avatar } = req.body;
 
     const userUpdates = {};
     if (name) userUpdates.name = name.trim();
@@ -160,6 +160,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     }
     if (status) userUpdates.status = status;
     if (phone !== undefined) userUpdates.phone = phone.trim();
+    if (avatar !== undefined) userUpdates.avatar = avatar;
 
     db.update('users', trainer.user_id, userUpdates);
 

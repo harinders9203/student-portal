@@ -128,7 +128,7 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /api/students - Admin add new student
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, email, password, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact } = req.body;
+    const { name, email, password, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact, avatar } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Name, email, and initial password are required.' });
@@ -151,7 +151,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       role: 'student',
       status: 'active',
       phone: phone ? phone.trim() : '',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`
+      avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`
     });
 
     // Auto-resolve trainer from batch if batch selected and trainer not explicitly set
@@ -185,14 +185,14 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/students/:id - Admin update student
-router.put('/:id', requireAuth, requireAdmin, (req, res) => {
+router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const student = db.findById('students', req.params.id);
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    const { name, email, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact, status } = req.body;
+    const { name, email, password, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact, status, avatar } = req.body;
 
     // Update User record
     const userUpdates = {};
@@ -201,12 +201,16 @@ router.put('/:id', requireAuth, requireAdmin, (req, res) => {
       const cleanEmail = email.trim().toLowerCase();
       const existing = db.findOne('users', u => u.email.toLowerCase() === cleanEmail && String(u.id) !== String(student.user_id));
       if (existing) {
-        return res.status(400).json({ success: false, message: 'Email is already used by another user.' });
+        return res.status(400).json({ success: false, message: 'Email address is already in use.' });
       }
       userUpdates.email = cleanEmail;
     }
     if (status) userUpdates.status = status;
     if (phone !== undefined) userUpdates.phone = phone.trim();
+    if (avatar !== undefined) userUpdates.avatar = avatar;
+    if (password && password.trim().length >= 6) {
+      userUpdates.password_hash = await bcrypt.hash(password.trim(), 10);
+    }
 
     db.update('users', student.user_id, userUpdates);
 
