@@ -99,7 +99,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const existing = db.findOne('users', u => u.email.toLowerCase() === cleanEmail);
+    const existing = db.findUserByEmail(cleanEmail);
     if (existing) {
       return res.status(400).json({ success: false, message: 'A user with this email already exists.' });
     }
@@ -130,6 +130,9 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     const enriched = db.getEnrichedTrainer(trainer);
     return res.status(201).json({ success: true, message: 'Trainer created successfully', data: enriched });
   } catch (err) {
+    if (err.code === 'DUPLICATE_EMAIL') {
+      return res.status(409).json({ success: false, message: 'An account with this email address already exists.' });
+    }
     console.error('Create trainer error:', err);
     return res.status(500).json({ success: false, message: 'Failed to create trainer.' });
   }
@@ -149,8 +152,8 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     if (name) userUpdates.name = name.trim();
     if (email) {
       const cleanEmail = email.trim().toLowerCase();
-      const existing = db.findOne('users', u => u.email.toLowerCase() === cleanEmail && String(u.id) !== String(trainer.user_id));
-      if (existing) {
+      const existing = db.findUserByEmail(cleanEmail);
+      if (existing && String(existing.id) !== String(trainer.user_id)) {
         return res.status(400).json({ success: false, message: 'Email is already taken.' });
       }
       userUpdates.email = cleanEmail;
@@ -177,6 +180,9 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     const enriched = db.getEnrichedTrainer(updatedTrainer);
     return res.json({ success: true, message: 'Trainer updated successfully', data: enriched });
   } catch (err) {
+    if (err.code === 'DUPLICATE_EMAIL') {
+      return res.status(409).json({ success: false, message: 'An account with this email address already exists.' });
+    }
     console.error('Update trainer error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update trainer.' });
   }

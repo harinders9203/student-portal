@@ -12,6 +12,107 @@ import {
 } from '../middleware/security.js';
 
 const router = express.Router();
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function createStudentCode() {
+  const year = new Date().getFullYear();
+  const prefix = `STU-${year}-`;
+  const existingCodes = new Set(db.find('students').map(student => student.student_id));
+  let sequence = 1;
+  let studentCode = `${prefix}${String(sequence).padStart(3, '0')}`;
+
+  while (existingCodes.has(studentCode)) {
+    sequence += 1;
+    studentCode = `${prefix}${String(sequence).padStart(3, '0')}`;
+  }
+
+  return studentCode;
+}
+
+function toSafeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    phone: user.phone,
+    avatar: user.avatar
+  };
+}
+
+// POST /api/auth/register - Public student self-registration
+router.post('/register', authLoginLimiter, async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanEmail = db.normalizeEmail(email);
+
+    if (!cleanName || !cleanEmail || !password) {
+      return res.status(400).json({ success: false, message: 'Name, email, and password are required.' });
+    }
+
+    if (!EMAIL_PATTERN.test(cleanEmail)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+
+    const passwordValidation = validatePasswordPolicy(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ success: false, message: passwordValidation.message });
+    }
+
+    if (db.findUserByEmail(cleanEmail)) {
+      return res.status(409).json({
+        success: false,
+        message: 'An account with this email address already exists. Please sign in instead.'
+      });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const user = db.insert('users', {
+      name: cleanName,
+      email: cleanEmail,
+      password_hash,
+      role: 'student',
+      status: 'active',
+      phone: typeof phone === 'string' ? phone.trim() : '',
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`
+    });
+
+    const student = db.insert('students', {
+      user_id: user.id,
+      student_id: createStudentCode(),
+      course_id: null,
+      batch_id: null,
+      trainer_id: null,
+      phone: user.phone,
+      address: '',
+      emergency_contact: ''
+    });
+
+    const profile = db.getEnrichedStudent(student);
+    const token = generateToken(user);
+    const safeUser = toSafeUser(user);
+    logAudit(req, 'STUDENT_SELF_REGISTERED', `Student self-registered: ${user.email}`, user);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Your student account has been created successfully.',
+      token,
+      user: safeUser,
+      profile
+    });
+  } catch (err) {
+    if (err.code === 'DUPLICATE_EMAIL') {
+      return res.status(409).json({
+        success: false,
+        message: 'An account with this email address already exists. Please sign in instead.'
+      });
+    }
+    console.error('Student registration error:', err);
+    return res.status(500).json({ success: false, message: 'Unable to create your student account. Please try again.' });
+  }
+});
 
 // POST /api/auth/login
 router.post('/login', authLoginLimiter, async (req, res) => {
@@ -73,15 +174,7 @@ router.post('/login', authLoginLimiter, async (req, res) => {
     // Log successful login
     logAudit(req, 'LOGIN_SUCCESS', `User logged in successfully: ${user.name} (${user.role})`, user);
 
-    const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      phone: user.phone,
-      avatar: user.avatar
-    };
+    const safeUser = toSafeUser(user);
 
     return res.json({
       success: true,
@@ -113,15 +206,7 @@ router.get('/me', requireAuth, (req, res) => {
       profile = db.getEnrichedTrainer(trainer);
     }
 
-    const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      phone: user.phone,
-      avatar: user.avatar
-    };
+    const safeUser = toSafeUser(user);
 
     return res.json({
       success: true,

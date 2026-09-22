@@ -82,6 +82,23 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const registerStudent = async (data) => {
+    try {
+      const res = await api.registerStudent(data);
+      if (res.success) {
+        localStorage.setItem('auth_token', res.token);
+        setUser(res.user);
+        setProfile(res.profile);
+        toast.success('Your student account is ready to use.', 'Registration Complete');
+        navigate('/student');
+        return { success: true };
+      }
+    } catch (err) {
+      toast.error(err.message || 'Registration failed. Please try again.', 'Registration Error');
+      return { success: false, error: err.message };
+    }
+  };
+
   const logout = async () => {
     try {
       await api.logout().catch(() => {});
@@ -115,6 +132,7 @@ export function AuthProvider({ children }) {
         role: user?.role || null,
         isAuthenticated: !!user,
         login,
+        registerStudent,
         logout,
         refreshProfile,
         setUser,

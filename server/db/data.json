@@ -2655,10 +2655,10 @@
       "title": "testing",
       "message": "Message recieved",
       "type": "system_announcement",
-      "is_read": false,
+      "is_read": true,
       "link": "/",
       "created_at": "2026-08-27T07:03:17.875Z",
-      "updated_at": "2026-08-27T07:03:17.875Z"
+      "updated_at": "2026-09-22T03:52:07.981Z"
     },
     {
       "id": 66,
@@ -4443,6 +4443,39 @@
       "ip_address": "127.0.0.1",
       "created_at": "2026-08-27T07:54:29.682Z",
       "updated_at": "2026-08-27T07:54:29.682Z"
+    },
+    {
+      "id": 142,
+      "user_id": 11,
+      "user_name": "Harinder Singh",
+      "user_role": "trainer",
+      "action": "LOGIN_SUCCESS",
+      "details": "User logged in successfully: Harinder Singh (trainer)",
+      "ip_address": "127.0.0.1",
+      "created_at": "2026-09-22T03:52:01.854Z",
+      "updated_at": "2026-09-22T03:52:01.854Z"
+    },
+    {
+      "id": 143,
+      "user_id": 11,
+      "user_name": "Harinder Singh",
+      "user_role": "trainer",
+      "action": "USER_LOGOUT",
+      "details": "User logged out.",
+      "ip_address": "127.0.0.1",
+      "created_at": "2026-09-22T04:08:55.424Z",
+      "updated_at": "2026-09-22T04:08:55.424Z"
+    },
+    {
+      "id": 144,
+      "user_id": 14,
+      "user_name": "Verification Test",
+      "user_role": "student",
+      "action": "STUDENT_SELF_REGISTERED",
+      "details": "Student self-registered: verify_test_user_unique@example.com",
+      "ip_address": "::1",
+      "created_at": "2026-09-22T04:39:11.552Z",
+      "updated_at": "2026-09-22T04:39:11.552Z"
     }
   ],
   "settings": {}

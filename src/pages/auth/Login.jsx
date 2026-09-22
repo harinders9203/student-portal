@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Lock,
   Mail,
@@ -189,6 +189,19 @@ export function Login() {
                 )}
               </button>
             </form>
+
+            <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-800">New student?</p>
+                <p className="text-xs text-slate-500 mt-0.5">Create your account and sign in right away.</p>
+              </div>
+              <Link
+                to="/register"
+                className="inline-flex items-center justify-center rounded-xl bg-white border border-indigo-200 px-3.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+              >
+                Register as student
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">

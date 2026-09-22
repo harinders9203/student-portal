@@ -135,7 +135,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const existingUser = db.findOne('users', u => u.email.toLowerCase() === cleanEmail);
+    const existingUser = db.findUserByEmail(cleanEmail);
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'A user with this email already exists.' });
     }
@@ -179,6 +179,9 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     const enriched = db.getEnrichedStudent(student);
     return res.status(201).json({ success: true, message: 'Student registered successfully', data: enriched });
   } catch (err) {
+    if (err.code === 'DUPLICATE_EMAIL') {
+      return res.status(409).json({ success: false, message: 'An account with this email address already exists.' });
+    }
     console.error('Create student error:', err);
     return res.status(500).json({ success: false, message: 'Failed to create student account.' });
   }
@@ -199,8 +202,8 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     if (name) userUpdates.name = name.trim();
     if (email) {
       const cleanEmail = email.trim().toLowerCase();
-      const existing = db.findOne('users', u => u.email.toLowerCase() === cleanEmail && String(u.id) !== String(student.user_id));
-      if (existing) {
+      const existing = db.findUserByEmail(cleanEmail);
+      if (existing && String(existing.id) !== String(student.user_id)) {
         return res.status(400).json({ success: false, message: 'Email address is already in use.' });
       }
       userUpdates.email = cleanEmail;
@@ -239,6 +242,9 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     const enriched = db.getEnrichedStudent(updatedStudent);
     return res.json({ success: true, message: 'Student updated successfully', data: enriched });
   } catch (err) {
+    if (err.code === 'DUPLICATE_EMAIL') {
+      return res.status(409).json({ success: false, message: 'An account with this email address already exists.' });
+    }
     console.error('Update student error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update student.' });
   }

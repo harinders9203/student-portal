@@ -5,6 +5,7 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 
 // Auth Page
 import { Login } from './pages/auth/Login';
+import { Register } from './pages/auth/Register';
 
 // Student Pages
 import { StudentDashboard } from './pages/student/StudentDashboard';
@@ -73,6 +74,7 @@ export function App() {
     <Routes>
       {/* Public Login */}
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       {/* Root Redirection */}
       <Route path="/" element={<RootRedirect />} />

@@ -79,14 +79,43 @@ class Database {
     return this.data[collection].find(item => String(item.id) === String(id)) || null;
   }
 
+  normalizeEmail(email) {
+    return typeof email === 'string' ? email.trim().toLowerCase() : '';
+  }
+
+  findUserByEmail(email) {
+    const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) return null;
+    return this.findOne('users', user => this.normalizeEmail(user.email) === normalizedEmail);
+  }
+
+  ensureUniqueUserEmail(email, excludedUserId = null) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const existingUser = this.findUserByEmail(normalizedEmail);
+    const isSameUser = existingUser && String(existingUser.id) === String(excludedUserId);
+
+    if (existingUser && !isSameUser) {
+      const error = new Error('An account with this email address already exists.');
+      error.code = 'DUPLICATE_EMAIL';
+      throw error;
+    }
+
+    return normalizedEmail;
+  }
+
   insert(collection, item) {
     if (!this.data[collection]) this.data[collection] = [];
+    const normalizedItem = { ...item };
+    if (collection === 'users') {
+      normalizedItem.email = this.ensureUniqueUserEmail(item.email);
+    }
+
     const now = new Date().toISOString();
     const newItem = {
-      id: item.id || this.generateId(collection),
-      ...item,
-      created_at: item.created_at || now,
-      updated_at: item.updated_at || now,
+      id: normalizedItem.id || this.generateId(collection),
+      ...normalizedItem,
+      created_at: normalizedItem.created_at || now,
+      updated_at: normalizedItem.updated_at || now,
     };
     this.data[collection].push(newItem);
     this.save();
@@ -99,9 +128,13 @@ class Database {
     if (index === -1) return null;
 
     const existing = this.data[collection][index];
+    const normalizedUpdates = { ...updates };
+    if (collection === 'users' && Object.prototype.hasOwnProperty.call(normalizedUpdates, 'email')) {
+      normalizedUpdates.email = this.ensureUniqueUserEmail(normalizedUpdates.email, existing.id);
+    }
     const updated = {
       ...existing,
-      ...updates,
+      ...normalizedUpdates,
       id: existing.id, // ID must remain immutable
       created_at: existing.created_at,
       updated_at: new Date().toISOString()
