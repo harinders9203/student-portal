@@ -73,11 +73,41 @@ export function AdminDashboard() {
     totalComplaints: 0,
     openComplaints: 0,
     overallAttendancePercentage: 100,
-    complaintResolutionRate: 100
+    complaintResolutionRate: 100,
+    pendingStudentRegistrations: 0
   };
 
   return (
     <div className="space-y-6">
+      {/* Pending Student Registrations Alert Banner */}
+      {cards.pendingStudentRegistrations > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border border-amber-300 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+              <Clock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 font-extrabold text-sm sm:text-base text-slate-900">
+                <span>{cards.pendingStudentRegistrations} Student Registration{cards.pendingStudentRegistrations > 1 ? 's' : ''} Pending Verification</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900 uppercase">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                New students have self-registered and require administrator approval before they can sign in and mark attendance.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/admin/students?status=pending_approval"
+            className="shrink-0 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
+          >
+            Review & Verify Students <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
         <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />

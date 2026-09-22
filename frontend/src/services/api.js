@@ -32,7 +32,11 @@ async function request(endpoint, options = {}) {
         localStorage.removeItem('auth_user');
         window.dispatchEvent(new Event('auth-expired'));
       }
-      throw new Error(data.message || `Request failed with status ${response.status}`);
+      const err = new Error(data.message || `Request failed with status ${response.status}`);
+      err.status = response.status;
+      err.code = data.code;
+      err.data = data;
+      throw err;
     }
 
     return data;
@@ -59,6 +63,8 @@ export const api = {
   getStudent: (id) => request(`/students/${id}`),
   createStudent: (data) => request('/students', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (id, data) => request(`/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  approveStudent: (id) => request(`/students/${id}/approve`, { method: 'POST' }),
+  rejectStudent: (id, reason) => request(`/students/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
   deleteStudent: (id) => request(`/students/${id}`, { method: 'DELETE' }),
 
   // Trainers

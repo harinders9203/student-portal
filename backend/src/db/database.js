@@ -217,6 +217,7 @@ class Database {
       status: user ? user.status : 'active',
       phone: student.phone || (user ? user.phone : ''),
       avatar: user ? user.avatar : null,
+      domain: student.domain || (course ? course.course_name : '') || '',
       course_name: course ? course.course_name : 'Not Enrolled',
       batch_name: batch ? batch.batch_name : 'Not Assigned',
       trainer_name: trainerUser ? trainerUser.name : 'Not Assigned',

@@ -36,9 +36,10 @@ router.get('/admin', requireAuth, requireAdmin, (req, res) => {
       ? Math.round((resolvedComplaints / totalComplaints) * 100) 
       : 100;
 
-    // Students with low attendance (< 75%)
+    // Students with low attendance (< 75%) and pending registration requests
     const allEnrichedStudents = db.find('students').map(s => db.getEnrichedStudent(s));
     const lowAttendanceStudents = allEnrichedStudents.filter(s => s.stats.attendancePercentage < 75 && s.stats.totalClasses > 0);
+    const pendingStudentRegistrations = allEnrichedStudents.filter(s => s.status === 'pending_approval').length;
 
     // Trainer verification activity
     const allTrainers = db.find('trainers').map(t => {
@@ -112,6 +113,7 @@ router.get('/admin', requireAuth, requireAdmin, (req, res) => {
           activeBatches,
           todayAttendance: todayAttendance.length,
           pendingAttendance: pendingVerification.length,
+          pendingStudentRegistrations,
           totalComplaints,
           openComplaints,
           underReviewComplaints,

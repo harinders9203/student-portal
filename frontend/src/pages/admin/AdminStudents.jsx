@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   GraduationCap,
   Plus,
@@ -14,7 +15,8 @@ import {
   XCircle,
   AlertTriangle,
   History,
-  AlertOctagon
+  AlertOctagon,
+  Clock
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
@@ -25,11 +27,21 @@ import { ConfirmModal } from '../../components/common/ConfirmModal';
 
 export function AdminStudents() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [batches, setBatches] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Status Tab Filter
+  const urlStatus = searchParams.get('status') || searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(urlStatus === 'pending_approval' || urlStatus === 'pending' ? 'pending_approval' : 'all');
+
+  // Approve / Reject State
+  const [rejectingStudent, setRejectingStudent] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Add / Edit Modal
   const [showFormModal, setShowFormModal] = useState(false);
@@ -58,6 +70,39 @@ export function AdminStudents() {
 
   // Deactivate Modal
   const [deactivatingStudent, setDeactivatingStudent] = useState(null);
+
+  const handleApprove = async (student) => {
+    try {
+      setActionLoading(true);
+      const res = await api.approveStudent(student.id);
+      if (res.success) {
+        toast.success(res.message || `Student ${student.name} approved successfully!`);
+        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'active' } : s));
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve student.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectingStudent) return;
+    try {
+      setActionLoading(true);
+      const res = await api.rejectStudent(rejectingStudent.id, rejectReason);
+      if (res.success) {
+        toast.success(res.message || `Registration rejected for ${rejectingStudent.name}.`);
+        setStudents(prev => prev.map(s => s.id === rejectingStudent.id ? { ...s, status: 'rejected' } : s));
+        setRejectingStudent(null);
+        setRejectReason('');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject student registration.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -92,6 +137,7 @@ export function AdminStudents() {
       email: '',
       password: 'student123',
       student_id: `STU-${new Date().getFullYear()}-${String(students.length + 1).padStart(3, '0')}`,
+      domain: '',
       course_id: courses[0]?.id || '',
       batch_id: batches[0]?.id || '',
       trainer_id: trainers[0]?.id || '',
@@ -111,6 +157,7 @@ export function AdminStudents() {
       email: student.email,
       password: '',
       student_id: student.student_id || '',
+      domain: student.domain || '',
       course_id: student.course_id || '',
       batch_id: student.batch_id || '',
       trainer_id: student.trainer_id || '',
@@ -215,6 +262,11 @@ export function AdminStudents() {
         <div>
           <span className="font-semibold text-xs text-slate-800">{s.batch_name}</span>
           <div className="text-[10px] text-slate-400">{s.course_name}</div>
+          {s.domain && (
+            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              Domain: {s.domain}
+            </span>
+          )}
         </div>
       )
     },
@@ -257,7 +309,29 @@ export function AdminStudents() {
       header: 'Actions',
       key: 'actions',
       render: (s) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {s.status === 'pending_approval' && (
+            <>
+              <button
+                onClick={() => handleApprove(s)}
+                disabled={actionLoading}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                title="Verify and approve student registration"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Approve
+              </button>
+              <button
+                onClick={() => setRejectingStudent(s)}
+                disabled={actionLoading}
+                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                title="Reject student registration"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Reject
+              </button>
+            </>
+          )}
           <button
             onClick={() => handleViewDetails(s)}
             className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
@@ -284,6 +358,18 @@ export function AdminStudents() {
     }
   ];
 
+  const pendingCount = students.filter(s => s.status === 'pending_approval').length;
+  const activeCount = students.filter(s => s.status === 'active').length;
+  const inactiveCount = students.filter(s => s.status === 'inactive' || s.status === 'rejected').length;
+
+  const filteredStudents = activeTab === 'all'
+    ? students
+    : activeTab === 'pending_approval'
+      ? students.filter(s => s.status === 'pending_approval')
+      : activeTab === 'active'
+        ? students.filter(s => s.status === 'active')
+        : students.filter(s => s.status === 'inactive' || s.status === 'rejected');
+
   return (
     <div className="space-y-6">
       {/* Header Bar */}
@@ -294,7 +380,7 @@ export function AdminStudents() {
             Student Management
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Register students, manage course & batch assignments, and review full student history.
+            Register students, verify new registration requests, and review complete student history.
           </p>
         </div>
 
@@ -307,18 +393,84 @@ export function AdminStudents() {
         </button>
       </div>
 
+      {/* Quick Status Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'all'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          All Students
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+            {students.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pending_approval')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'pending_approval'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'text-amber-800 hover:bg-amber-50'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Pending Verification
+          {pendingCount > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'pending_approval' ? 'bg-white text-amber-800' : 'bg-amber-200 text-amber-900 animate-pulse'
+            }`}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'active'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Active
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+            {activeCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('inactive')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'inactive'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Inactive / Rejected
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'inactive' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+            {inactiveCount}
+          </span>
+        </button>
+      </div>
+
       {/* Students Data Table */}
       <DataTable
         columns={columns}
-        data={students}
-        searchPlaceholder="Search student name, ID, email, or batch..."
-        searchFields={['name', 'student_id', 'email', 'batch_name', 'course_name', 'phone']}
+        data={filteredStudents}
+        searchPlaceholder="Search student name, ID, domain, email, or batch..."
+        searchFields={['name', 'student_id', 'email', 'domain', 'batch_name', 'course_name', 'phone']}
         filters={[
           {
             key: 'status',
             label: 'Status',
             options: [
               { value: 'active', label: 'Active' },
+              { value: 'pending_approval', label: 'Pending Approval' },
+              { value: 'rejected', label: 'Rejected' },
               { value: 'inactive', label: 'Inactive' }
             ]
           }
@@ -397,16 +549,29 @@ export function AdminStudents() {
           </div>
 
           {/* Academic Assignments */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Course Program
-              </label>
-              <select
-                value={formData.course_id}
-                onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium text-slate-800"
-              >
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Domain / Field of Interest
+            </label>
+            <input
+              type="text"
+              value={formData.domain}
+              onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
+              placeholder="e.g. Full-Stack Web Development, CAD / Mechanical, Data Science"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Course Program
+                </label>
+                <select
+                  value={formData.course_id}
+                  onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium text-slate-800"
+                >
                 <option value="">-- Select Course --</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -589,8 +754,13 @@ export function AdminStudents() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {viewingStudent.domain && (
+                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                    {viewingStudent.domain}
+                  </span>
+                )}
                 <StatusBadge status={viewingStudent.status} />
-                <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                   {viewingStudent.student_id}
                 </span>
               </div>
@@ -703,6 +873,58 @@ export function AdminStudents() {
           confirmText="Deactivate"
           type="danger"
         />
+      )}
+
+      {/* Reject Registration Modal */}
+      {rejectingStudent && (
+        <Modal
+          isOpen={Boolean(rejectingStudent)}
+          onClose={() => {
+            setRejectingStudent(null);
+            setRejectReason('');
+          }}
+          title="Reject Student Registration"
+        >
+          <div className="space-y-4">
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Are you sure you want to reject the registration request for{' '}
+              <strong className="text-slate-900">{rejectingStudent?.name}</strong> (<span className="font-mono text-slate-700">{rejectingStudent?.email}</span>)?
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Rejection Reason (Optional)
+              </label>
+              <textarea
+                rows="3"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. Ineligible enrollment cohort, invalid credentials, or duplicate application..."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectingStudent(null);
+                  setRejectReason('');
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReject}
+                disabled={actionLoading}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <XCircle className="w-4 h-4" />
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

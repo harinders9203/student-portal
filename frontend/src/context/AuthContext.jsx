@@ -77,6 +77,14 @@ export function AuthProvider({ children }) {
         return { success: true };
       }
     } catch (err) {
+      if (err.code === 'PENDING_APPROVAL') {
+        toast.warning(err.message, 'Account Pending Verification');
+        return { success: false, pendingApproval: true, message: err.message };
+      }
+      if (err.code === 'REGISTRATION_REJECTED') {
+        toast.error(err.message, 'Registration Rejected');
+        return { success: false, rejected: true, message: err.message };
+      }
       toast.error(err.message || 'Login failed. Please check your credentials.', 'Authentication Error');
       return { success: false, error: err.message };
     }
@@ -86,6 +94,10 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.registerStudent(data);
       if (res.success) {
+        if (res.pendingApproval) {
+          toast.info(res.message, 'Registration Submitted');
+          return { success: true, pendingApproval: true, message: res.message };
+        }
         localStorage.setItem('auth_token', res.token);
         setUser(res.user);
         setProfile(res.profile);

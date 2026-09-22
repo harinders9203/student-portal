@@ -56,21 +56,12 @@ export function Navbar({ onToggleSidebar }) {
             <Menu className="w-5 h-5" />
           </button>
 
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
-                <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
-              </svg>
-            </div>
-            <div className="hidden sm:block">
-              <div className="font-extrabold text-base tracking-tight text-slate-900 leading-none">
-                EduPortal
-              </div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
-                Attendance & Complaints
-              </div>
-            </div>
+          <Link to="/" className="flex items-center group py-1">
+            <img
+              src="/logo.png"
+              alt="Techcadd - Your Skill & Technology Partner"
+              className="h-8 sm:h-9 w-auto object-contain group-hover:opacity-90 transition-opacity"
+            />
           </Link>
         </div>
 

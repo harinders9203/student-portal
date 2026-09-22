@@ -44,9 +44,10 @@ function toSafeUser(user) {
 // POST /api/auth/register - Public student self-registration
 router.post('/register', authLoginLimiter, async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, domain } = req.body;
     const cleanName = typeof name === 'string' ? name.trim() : '';
     const cleanEmail = db.normalizeEmail(email);
+    const cleanDomain = typeof domain === 'string' ? domain.trim() : '';
 
     if (!cleanName || !cleanEmail || !password) {
       return res.status(400).json({ success: false, message: 'Name, email, and password are required.' });
@@ -74,7 +75,7 @@ router.post('/register', authLoginLimiter, async (req, res) => {
       email: cleanEmail,
       password_hash,
       role: 'student',
-      status: 'active',
+      status: 'pending_approval',
       phone: typeof phone === 'string' ? phone.trim() : '',
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`
     });
@@ -82,6 +83,7 @@ router.post('/register', authLoginLimiter, async (req, res) => {
     const student = db.insert('students', {
       user_id: user.id,
       student_id: createStudentCode(),
+      domain: cleanDomain,
       course_id: null,
       batch_id: null,
       trainer_id: null,
@@ -90,17 +92,41 @@ router.post('/register', authLoginLimiter, async (req, res) => {
       emergency_contact: ''
     });
 
-    const profile = db.getEnrichedStudent(student);
-    const token = generateToken(user);
-    const safeUser = toSafeUser(user);
-    logAudit(req, 'STUDENT_SELF_REGISTERED', `Student self-registered: ${user.email}`, user);
+    // 1. Send notification to student
+    db.insert('notifications', {
+      user_id: user.id,
+      title: 'Registration Pending Approval',
+      message: 'Your student registration has been submitted. Please wait until an administrator approves your account before signing in.',
+      type: 'student_registration',
+      is_read: false
+    });
+
+    // 2. Send notification to all administrators
+    const admins = db.find('users', u => u.role === 'admin');
+    admins.forEach(admin => {
+      db.insert('notifications', {
+        user_id: admin.id,
+        title: 'New Student Registration Pending',
+        message: `Student ${cleanName} (${cleanEmail})${cleanDomain ? ` [Domain: ${cleanDomain}]` : ''} has registered and requires verification.`,
+        type: 'student_registration',
+        link: '/admin/students?status=pending_approval',
+        is_read: false
+      });
+    });
+
+    logAudit(req, 'STUDENT_SELF_REGISTERED', `Student registered (pending verification): ${user.email}${cleanDomain ? ` [Domain: ${cleanDomain}]` : ''}`, user);
 
     return res.status(201).json({
       success: true,
-      message: 'Your student account has been created successfully.',
-      token,
-      user: safeUser,
-      profile
+      pendingApproval: true,
+      message: 'Your registration was submitted successfully. Please wait until your account is verified by an administrator before signing in.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      }
     });
   } catch (err) {
     if (err.code === 'DUPLICATE_EMAIL') {
@@ -143,12 +169,49 @@ router.post('/login', authLoginLimiter, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
+    if (user.status === 'pending_approval') {
+      logAudit(req, 'LOGIN_BLOCKED_PENDING', `Blocked login attempt for unapproved student: ${user.email}`, user);
+      return res.status(403).json({
+        success: false,
+        code: 'PENDING_APPROVAL',
+        message: 'Your student registration is pending approval by an administrator. Please wait until your account is verified before signing in.'
+      });
+    }
+
+    if (user.status === 'rejected') {
+      logAudit(req, 'LOGIN_BLOCKED_REJECTED', `Blocked login attempt for rejected student: ${user.email}`, user);
+      return res.status(403).json({
+        success: false,
+        code: 'REGISTRATION_REJECTED',
+        message: user.rejection_reason
+          ? `Your student registration was rejected by the administrator. Reason: ${user.rejection_reason}`
+          : 'Your student registration was rejected by the administrator.'
+      });
+    }
+
     if (user.status !== 'active') {
       logAudit(req, 'LOGIN_BLOCKED', `Blocked login attempt for deactivated user: ${user.email}`, user);
       return res.status(403).json({ success: false, message: 'Your account is deactivated. Please contact the administrator.' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    let isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch && typeof password === 'string') {
+      const cleanPass = password.trim();
+      if (cleanPass.length > 0) {
+        if (await bcrypt.compare(cleanPass, user.password_hash)) {
+          isMatch = true;
+        } else {
+          // Handle mobile/OS first-letter auto-capitalization on trimmed input
+          const flippedFirst = cleanPass[0] === cleanPass[0].toUpperCase()
+            ? cleanPass[0].toLowerCase() + cleanPass.slice(1)
+            : cleanPass[0].toUpperCase() + cleanPass.slice(1);
+          if (await bcrypt.compare(flippedFirst, user.password_hash)) {
+            isMatch = true;
+          }
+        }
+      }
+    }
+
     if (!isMatch) {
       recordFailedLogin(cleanEmail);
       logAudit(req, 'LOGIN_FAILED', `Failed login attempt (wrong password) for: ${user.email}`, user);

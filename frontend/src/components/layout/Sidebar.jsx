@@ -77,13 +77,12 @@ export function Sidebar({ isOpen, onClose }) {
         }`}
       >
         {/* Top Branding (Mobile only close header) */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 lg:hidden">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold">
-              E
-            </div>
-            <span className="font-bold text-sm text-slate-900">EduPortal</span>
-          </div>
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 lg:hidden">
+          <img
+            src="/logo.png"
+            alt="Techcadd - Your Skill & Technology Partner"
+            className="h-7 w-auto object-contain"
+          />
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
@@ -149,10 +148,10 @@ export function Sidebar({ isOpen, onClose }) {
         {/* Footer Info */}
         <div className="p-4 border-t border-slate-100 text-center">
           <div className="text-[10px] font-semibold text-slate-400">
-            EduPortal v1.0.0
+            Techcadd v1.0.0
           </div>
           <div className="text-[10px] text-slate-400">
-            Role-Based Academic System
+            Skill & Technology Partner
           </div>
         </div>
       </aside>

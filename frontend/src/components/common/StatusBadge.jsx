@@ -104,12 +104,30 @@ export function StatusBadge({ status, type = 'status', className = '' }) {
     );
   }
 
-  // Active / Inactive
+  // User Account Statuses
   if (s === 'active') {
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 ${className}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 ${className}`}>
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
         Active
+      </span>
+    );
+  }
+
+  if (s === 'pending_approval' || s === 'pending verification' || s === 'pending') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse ${className}`}>
+        <Clock className="w-3.5 h-3.5 text-amber-600" />
+        Pending Approval
+      </span>
+    );
+  }
+
+  if (s === 'rejected') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 ${className}`}>
+        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+        Rejected
       </span>
     );
   }

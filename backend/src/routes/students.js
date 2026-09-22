@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../db/database.js';
 import { requireAuth, requireAdmin, requireTrainerOrAdmin } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { resetFailedLogins } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -128,13 +129,13 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /api/students - Admin add new student
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, email, password, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact, avatar } = req.body;
+    const { name, email, password, student_id, domain, course_id, batch_id, trainer_id, phone, address, emergency_contact, avatar } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Name, email, and initial password are required.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = db.normalizeEmail(email);
     const existingUser = db.findUserByEmail(cleanEmail);
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'A user with this email already exists.' });
@@ -166,6 +167,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     const student = db.insert('students', {
       user_id: user.id,
       student_id: nextCode,
+      domain: domain ? domain.trim() : '',
       course_id: course_id ? Number(course_id) : null,
       batch_id: batch_id ? Number(batch_id) : null,
       trainer_id: finalTrainerId ? Number(finalTrainerId) : null,
@@ -195,7 +197,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    const { name, email, password, student_id, course_id, batch_id, trainer_id, phone, address, emergency_contact, status, avatar } = req.body;
+    const { name, email, password, student_id, domain, course_id, batch_id, trainer_id, phone, address, emergency_contact, status, avatar } = req.body;
 
     // Update User record
     const userUpdates = {};
@@ -220,6 +222,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     // Update Student record
     const studentUpdates = {};
     if (student_id) studentUpdates.student_id = student_id.trim();
+    if (domain !== undefined) studentUpdates.domain = typeof domain === 'string' ? domain.trim() : '';
     if (course_id !== undefined) studentUpdates.course_id = course_id ? Number(course_id) : null;
     if (batch_id !== undefined) {
       studentUpdates.batch_id = batch_id ? Number(batch_id) : null;
@@ -266,6 +269,91 @@ router.delete('/:id', requireAuth, requireAdmin, (req, res) => {
   } catch (err) {
     console.error('Delete student error:', err);
     return res.status(500).json({ success: false, message: 'Failed to deactivate student.' });
+  }
+});
+
+// POST /api/students/:id/approve - Admin approve student registration
+router.post('/:id/approve', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const student = db.findById('students', req.params.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    const user = db.findById('users', student.user_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User record not found.' });
+    }
+
+    // Activate user and clear any previous failed attempt locks
+    db.update('users', user.id, { status: 'active', rejection_reason: null });
+    resetFailedLogins(user.email);
+
+    // Send notification to the student
+    db.insert('notifications', {
+      user_id: user.id,
+      title: 'Registration Approved! 🎉',
+      message: 'Your student account has been verified and approved by the administrator. You can now sign in to access your portal.',
+      type: 'student_approval',
+      link: '/login',
+      is_read: false
+    });
+
+    logAudit(req, 'STUDENT_APPROVED', `Admin approved student registration: ${user.name} (${user.email})`);
+
+    const enriched = db.getEnrichedStudent(student);
+    return res.json({
+      success: true,
+      message: `Student account for ${user.name} has been verified and approved successfully.`,
+      data: enriched
+    });
+  } catch (err) {
+    console.error('Approve student error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to approve student registration.' });
+  }
+});
+
+// POST /api/students/:id/reject - Admin reject student registration
+router.post('/:id/reject', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const student = db.findById('students', req.params.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    const user = db.findById('users', student.user_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User record not found.' });
+    }
+
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+
+    // Mark user as rejected
+    db.update('users', user.id, {
+      status: 'rejected',
+      rejection_reason: reason || 'Application did not meet requirements'
+    });
+
+    // Send notification to the student
+    db.insert('notifications', {
+      user_id: user.id,
+      title: 'Registration Rejected',
+      message: `Your student registration was rejected by the administrator.${reason ? ` Reason: ${reason}` : ''}`,
+      type: 'student_rejection',
+      is_read: false
+    });
+
+    logAudit(req, 'STUDENT_REJECTED', `Admin rejected student registration: ${user.name} (${user.email}). Reason: ${reason || 'N/A'}`);
+
+    const enriched = db.getEnrichedStudent(student);
+    return res.json({
+      success: true,
+      message: `Student registration for ${user.name} has been rejected.`,
+      data: enriched
+    });
+  } catch (err) {
+    console.error('Reject student error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reject student registration.' });
   }
 });
 

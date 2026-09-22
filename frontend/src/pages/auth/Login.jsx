@@ -11,7 +11,8 @@ import {
   Sparkles,
   ArrowRight,
   CheckCircle2,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -21,12 +22,15 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState(null);
   const { login } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setPendingMessage(null);
+
     if (!email.trim() || !password.trim()) {
       toast.warning('Please enter both your email address and password.');
       return;
@@ -34,7 +38,10 @@ export function Login() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      const res = await login(email.trim(), password);
+      if (res && res.pendingApproval) {
+        setPendingMessage(res.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -44,9 +51,9 @@ export function Login() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100/10">
         {/* Left Col: Portal Intro */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-5 bg-gradient-to-br from-[#221e5b] via-[#2e246e] to-[#130f3a] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
           <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
 
           <div>
             <div className="inline-flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-indigo-100 border border-white/20 mb-6">
@@ -54,14 +61,14 @@ export function Login() {
               Role-Based Education Management
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-inner">
-                <svg className="w-7 h-7 fill-current" viewBox="0 0 24 24">
-                  <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
-                  <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
-                </svg>
+            <div className="mb-5">
+              <div className="inline-block bg-white px-4 py-2.5 rounded-2xl shadow-xl shadow-indigo-950/20 border border-white/40">
+                <img
+                  src="/logo.png"
+                  alt="Techcadd - Your Skill & Technology Partner"
+                  className="h-10 sm:h-11 w-auto object-contain"
+                />
               </div>
-              <h1 className="text-2xl font-extrabold tracking-tight">EduPortal</h1>
             </div>
 
             <p className="text-indigo-100 text-sm leading-relaxed">
@@ -128,6 +135,24 @@ export function Login() {
                 </div>
               </div>
             </div>
+
+            {/* Pending Verification Notice Banner */}
+            {pendingMessage && (
+              <div className="mb-6 bg-amber-50 border border-amber-300 rounded-2xl p-4 text-xs text-amber-900 animate-in fade-in duration-200 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                    <Clock className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-amber-900">Account Pending Verification</h4>
+                    <p className="mt-1 leading-relaxed text-amber-800">{pendingMessage}</p>
+                    <p className="mt-2 text-[11px] font-semibold text-amber-700">
+                      ℹ️ Please wait until an administrator approves your registration.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">

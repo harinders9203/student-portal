@@ -93,6 +93,56 @@ async function runE2ETests() {
     assert(studentLogin.ok && studentLogin.data.user.role === 'student', 'Student John login successful and role verified');
     const studentToken = studentLogin.data.token;
 
+    // 2.1. Student Self-Registration Admin Verification & Restrictive Access Workflow
+    console.log('\n--- Testing Student Registration Admin Verification & Access Control ---');
+    const testEmail = `new.applicant.${Date.now()}@portal.edu`;
+    const regRes = await req('/auth/register', 'POST', {
+      name: 'Applicant Alice',
+      email: testEmail,
+      password: 'password123',
+      phone: '555-0199'
+    });
+    assert(regRes.status === 201 && regRes.data.pendingApproval === true, 'Student registration initializes with pendingApproval: true');
+    assert(regRes.data.user?.status === 'pending_approval', 'Student user status is set to pending_approval');
+    const registeredUserId = regRes.data.user?.id;
+
+    // Early login attempt blocked
+    const earlyLoginRes = await req('/auth/login', 'POST', { email: testEmail, password: 'password123' });
+    assert(earlyLoginRes.status === 403 && earlyLoginRes.data.code === 'PENDING_APPROVAL', 'Unverified student blocked from logging in with 403 PENDING_APPROVAL');
+
+    // Admin verifies pending list and approves
+    const pendingStudentsRes = await req('/students?status=pending_approval', 'GET', null, adminToken);
+    const foundPending = pendingStudentsRes.data?.data?.find(s => String(s.user_id) === String(registeredUserId));
+    assert(foundPending && foundPending.status === 'pending_approval', 'Admin retrieves pending student registrations list');
+
+    if (foundPending) {
+      const approveRes = await req(`/students/${foundPending.id}/approve`, 'POST', null, adminToken);
+      assert(approveRes.ok && approveRes.data.data?.status === 'active', 'Admin approves student registration -> status becomes active');
+
+      // Now student logs in successfully
+      const approvedLoginRes = await req('/auth/login', 'POST', { email: testEmail, password: 'password123' });
+      assert(approvedLoginRes.ok && approvedLoginRes.data.user?.role === 'student', 'Approved student can now successfully log in to portal');
+    }
+
+    // Rejection workflow test
+    const rejectEmail = `rejected.applicant.${Date.now()}@portal.edu`;
+    const regRes2 = await req('/auth/register', 'POST', {
+      name: 'Applicant Bob',
+      email: rejectEmail,
+      password: 'password123',
+      phone: '555-0188'
+    });
+    const pendingStudentsRes2 = await req('/students?status=pending_approval', 'GET', null, adminToken);
+    const foundPending2 = pendingStudentsRes2.data?.data?.find(s => s.email === rejectEmail);
+
+    if (foundPending2) {
+      const rejectRes = await req(`/students/${foundPending2.id}/reject`, 'POST', { reason: 'Enrollment capacity reached' }, adminToken);
+      assert(rejectRes.ok && rejectRes.data.data?.status === 'rejected', 'Admin rejects student registration with mandatory reason');
+
+      const rejectLoginRes = await req('/auth/login', 'POST', { email: rejectEmail, password: 'password123' });
+      assert(rejectLoginRes.status === 403 && rejectLoginRes.data.code === 'REGISTRATION_REJECTED', 'Rejected student blocked from login with 403 REGISTRATION_REJECTED');
+    }
+
     // 3. Forged Token Rejection
     const fakeTokenRes = await req('/auth/me', 'GET', null, 'forged-invalid-jwt-token-12345');
     assert(fakeTokenRes.status === 401, 'Forged / invalid JWT tokens strictly rejected (401 Unauthorized)');

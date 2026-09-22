@@ -180,6 +180,12 @@ export function StudentProfile() {
           </h3>
 
           <div className="space-y-3 text-xs">
+            {profile?.domain && (
+              <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between">
+                <span className="font-semibold text-slate-600">Specialization Domain:</span>
+                <span className="font-bold text-indigo-700">{profile.domain}</span>
+              </div>
+            )}
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
               <span className="font-semibold text-slate-600">Course Program:</span>
               <span className="font-bold text-slate-900">{profile?.course_name || 'Full-Stack Web Development'}</span>
