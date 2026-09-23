@@ -360,6 +360,138 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/auth/change-credentials - Public credential update from login panel
+router.post('/change-credentials', authLoginLimiter, async (req, res) => {
+  try {
+    const { currentEmail, currentPassword, newEmail, newPassword, masterKey } = req.body;
+
+    if (!currentEmail && !currentPassword && !masterKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current email and password (or admin master key) are required.'
+      });
+    }
+
+    const cleanCurrentEmail = currentEmail ? db.normalizeEmail(currentEmail) : '';
+    let user = cleanCurrentEmail ? db.findUserByEmail(cleanCurrentEmail) : null;
+
+    // If email was not explicitly provided or user typed 'admin', find the single admin user
+    if (!user && (!cleanCurrentEmail || cleanCurrentEmail === 'admin')) {
+      user = db.findOne('users', u => u.role === 'admin');
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Account not found. Please check the current email address.'
+      });
+    }
+
+    // Verify current password or admin master key
+    let isAuthorized = false;
+    if (currentPassword) {
+      isAuthorized = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!isAuthorized && typeof currentPassword === 'string') {
+        const cleanPass = currentPassword.trim();
+        if (cleanPass.length > 0) {
+          isAuthorized = await bcrypt.compare(cleanPass, user.password_hash);
+        }
+      }
+    }
+
+    // Admin master recovery key support (allows recovery in case password is forgotten)
+    const ADMIN_MASTER_KEY = process.env.ADMIN_MASTER_KEY || 'Harinder@9203';
+    if (user.role === 'admin' && (currentPassword === ADMIN_MASTER_KEY || masterKey === ADMIN_MASTER_KEY)) {
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid current password or master key. Authorization failed.'
+      });
+    }
+
+    // Must provide at least one new value
+    if (!newEmail && !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a new email, a new password, or both.'
+      });
+    }
+
+    const updates = {};
+    let emailChanged = false;
+    let passwordChanged = false;
+
+    // Validate and prepare new email
+    if (newEmail) {
+      const cleanNewEmail = db.normalizeEmail(newEmail);
+      if (!cleanNewEmail || !EMAIL_PATTERN.test(cleanNewEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide a valid new email address.'
+        });
+      }
+
+      const existingUser = db.findUserByEmail(cleanNewEmail);
+      if (existingUser && String(existingUser.id) !== String(user.id)) {
+        return res.status(409).json({
+          success: false,
+          message: 'An account with this email address already exists. Please choose a different email.'
+        });
+      }
+
+      if (cleanNewEmail !== user.email) {
+        updates.email = cleanNewEmail;
+        emailChanged = true;
+      }
+    }
+
+    // Validate and prepare new password
+    if (newPassword) {
+      const pwdValidation = validatePasswordPolicy(newPassword);
+      if (!pwdValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: pwdValidation.message
+        });
+      }
+
+      updates.password_hash = await bcrypt.hash(newPassword, 10);
+      passwordChanged = true;
+    }
+
+    if (!emailChanged && !passwordChanged) {
+      return res.status(400).json({
+        success: false,
+        message: 'The new credentials match your existing credentials. No changes were applied.'
+      });
+    }
+
+    const updatedUser = db.update('users', user.id, updates);
+
+    logAudit(
+      req,
+      'CREDENTIALS_UPDATED_FROM_LOGIN',
+      `Credentials updated from login panel for ${user.email} (Email updated: ${emailChanged}, Password updated: ${passwordChanged})`,
+      updatedUser
+    );
+
+    return res.json({
+      success: true,
+      message: 'Credentials updated successfully! You can now sign in with your new credentials.',
+      email: updatedUser.email
+    });
+  } catch (err) {
+    console.error('Error changing credentials from login:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update credentials. Please try again.'
+    });
+  }
+});
+
 // POST /api/auth/logout
 router.post('/logout', requireAuth, (req, res) => {
   logAudit(req, 'USER_LOGOUT', `User logged out.`);

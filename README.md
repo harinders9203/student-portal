@@ -183,7 +183,7 @@ Use these credentials to test role separation, permissions, and security.
 
 | Role | User Name | Email Address | Password | Role Description & Assigned Scope |
 | :--- | :--- | :--- | :--- | :--- |
-| **Admin** | Dr. Robert Sterling | `admin@portal.edu` | `admin123` | Master Administrator (Full institute control, faculty CRUD, reports, grievance resolution) |
+| **Admin** | Harinder Singh | `singhharinder.techcadd@gmail.com` | `Harinder@9203` | Master Administrator (Full institute control, faculty CRUD, reports, grievance resolution) |
 | **Trainer** | Alex Rivera | `trainer.alex@portal.edu` | `trainer123` | Lead Trainer for *Full-Stack Web Dev (Batch FSWD-2026-A)* |
 | **Trainer** | Sarah Jenkins | `trainer.sarah@portal.edu` | `trainer123` | Specialist for *Data Science & AI (Batch DSAI-2026-B)* |
 | **Trainer** | Marcus Chen | `trainer.marcus@portal.edu` | `trainer123` | Instructor for *Cybersecurity & Cloud (Batch CYBER-2026-C)* |

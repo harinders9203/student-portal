@@ -56,7 +56,12 @@ export function Navbar({ onToggleSidebar }) {
             <Menu className="w-5 h-5" />
           </button>
 
-          <Link to="/" className="flex items-center group py-1">
+          <Link to="/" className="flex items-center gap-2.5 group py-1">
+            <img
+              src="/favicon.png"
+              alt="Techcadd Icon"
+              className="h-8 w-8 rounded-lg object-contain shadow-sm border border-slate-200/60"
+            />
             <img
               src="/logo.png"
               alt="Techcadd - Your Skill & Technology Partner"

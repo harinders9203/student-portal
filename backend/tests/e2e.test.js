@@ -81,7 +81,7 @@ async function runE2ETests() {
 
     // 2. Role Authentication
     console.log('\n--- Testing Authentication & Cryptographic JWT Claims ---');
-    const adminLogin = await req('/auth/login', 'POST', { email: 'admin@portal.edu', password: 'admin123' });
+    const adminLogin = await req('/auth/login', 'POST', { email: 'singhharinder.techcadd@gmail.com', password: 'Harinder@9203' });
     assert(adminLogin.ok && adminLogin.data.user.role === 'admin', 'Admin login successful and role verified');
     const adminToken = adminLogin.data.token;
 

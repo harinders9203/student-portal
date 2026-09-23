@@ -23,19 +23,19 @@ export async function seedDatabase() {
   db.data.audit_logs = [];
 
   const passwordHash = await bcrypt.hash('password123', 10);
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const adminPassword = await bcrypt.hash('Harinder@9203', 10);
   const trainerPassword = await bcrypt.hash('trainer123', 10);
   const studentPassword = await bcrypt.hash('student123', 10);
 
   // 1. Users
   const uAdmin = db.insert('users', {
-    name: 'Dr. Robert Sterling',
-    email: 'admin@portal.edu',
+    name: 'Harinder Singh',
+    email: 'singhharinder.techcadd@gmail.com',
     password_hash: adminPassword,
     role: 'admin',
     status: 'active',
-    phone: '+1 (555) 019-2834',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+    phone: '+91 83604-29812',
+    avatar: '/favicon.png'
   });
 
   const uTrainer1 = db.insert('users', {
@@ -505,7 +505,7 @@ export async function seedDatabase() {
   // 9. Audit Logs
   db.insert('audit_logs', {
     user_id: uAdmin.id,
-    user_name: 'Dr. Robert Sterling',
+    user_name: 'Harinder Singh',
     user_role: 'admin',
     action: 'SYSTEM_INITIALIZED',
     details: 'Institute portal initialized with base courses, trainers, and batches.',

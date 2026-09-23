@@ -10,9 +10,9 @@ export function QuickRoleSwitcher() {
   const demoAccounts = [
     {
       role: 'admin',
-      label: 'Admin (Robert Sterling)',
-      email: 'admin@portal.edu',
-      password: 'admin123',
+      label: 'Admin (Harinder Singh)',
+      email: 'singhharinder.techcadd@gmail.com',
+      password: 'Harinder@9203',
       icon: ShieldCheck,
       color: 'bg-rose-50 text-rose-700 border-rose-200',
       badgeColor: 'bg-rose-600',

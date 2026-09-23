@@ -78,11 +78,18 @@ export function Sidebar({ isOpen, onClose }) {
       >
         {/* Top Branding (Mobile only close header) */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 lg:hidden">
-          <img
-            src="/logo.png"
-            alt="Techcadd - Your Skill & Technology Partner"
-            className="h-7 w-auto object-contain"
-          />
+          <div className="flex items-center gap-2">
+            <img
+              src="/favicon.png"
+              alt="Techcadd Icon"
+              className="h-7 w-7 rounded-lg object-contain shadow-sm border border-slate-200/60"
+            />
+            <img
+              src="/logo.png"
+              alt="Techcadd - Your Skill & Technology Partner"
+              className="h-6 w-auto object-contain"
+            />
+          </div>
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
